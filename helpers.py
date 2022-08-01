@@ -6,6 +6,11 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from yaml import load, Loader
 
+def loadmapping():
+    with open(join(getcwd(), 'resources', 'mapping.yml'), 'r') as out_stream:
+        data = load(out_stream, Loader)
+        return data
+
 def loadproperties():
     with open(join(getcwd(), 'resources', 'properties.yml'), 'r') as out_stream:
         data = load(out_stream, Loader)
