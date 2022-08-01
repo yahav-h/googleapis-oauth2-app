@@ -6,10 +6,14 @@ from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from yaml import load, Loader
 
-def getdatatbaseinfo():
+def loadproperties():
     with open(join(getcwd(), 'resources', 'properties.yml'), 'r') as out_stream:
         data = load(out_stream, Loader)
-        return data['database']
+        return data
+
+def getdatatbaseinfo(): return loadproperties().get("database")
+def getclientconfig(): return loadproperties().get("oauth")
+def getsecuritypassword(): return loadproperties().get("security").get("password")
 
 def getwebdriver():
     chrome_options = Options()
