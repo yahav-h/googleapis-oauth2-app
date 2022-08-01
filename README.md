@@ -31,9 +31,9 @@ usage: googleapis_Auth.py [-h] -F FARM -C CLUSTERS [-D DEBUG_ENV]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -F FARM, --farm FARM
-  -C CLUSTERS, --clusters CLUSTERS
-  -D DEBUG_ENV, --debug DEBUG_ENV
+  --farm FARM
+  --clusters CLUSTERS
+  --debug DEBUG_ENV
 ```
 
 ### NOTES:
