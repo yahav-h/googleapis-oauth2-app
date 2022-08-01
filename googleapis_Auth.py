@@ -1,11 +1,12 @@
 import sys
 import time
+import urllib
 from pickle import dumps
 from threading import Thread
 from requests_oauthlib import OAuth2Session
 from flask import Flask, request
 from werkzeug.serving import make_server
-from google_auth_oauthlib.flow import InstalledAppFlow
+import google_auth_oauthlib
 from helpers import getwebdriver, getclientconfig, getsecuritypassword, loadmapping
 from selenium.webdriver.common.action_chains import ActionChains
 from database import get_session, init_debug_db
@@ -27,6 +28,17 @@ driver = None
 admin_driver = None
 app = Flask(__name__)
 
+def extract_params(url):
+    code, state, scope = None, None, None
+    url = urllib.parse.unquote(url)
+    for _ in url.split('&'):
+        if 'code' in _:
+            code = _.split('=')[-1]
+        elif 'state' in _:
+            state = _.split('=')[-1]
+        elif 'scope' in _:
+            scope = _.split('=')[-1].split(',').pop()
+    return code, state, scope
 
 @app.route("/", methods=["GET"])
 def callback():
