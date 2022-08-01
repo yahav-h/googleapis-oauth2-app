@@ -27,13 +27,14 @@ Follow the instructions!
 ```shell
  $ ./venv/bin/python3 googleapis_Auth.py -h
  
-usage: googleapis_Auth.py [-h] -F FARM -C CLUSTERS [-D DEBUG_ENV]
+usage: googleapis_Auth.py [-h] --farm FARM --clusters CLUSTERS [--debug DEBUG_ENV]
 
 optional arguments:
-  -h, --help            show this help message and exit
-  --farm FARM
-  --clusters CLUSTERS
-  --debug DEBUG_ENV
+  -h, --help           show this help message and exit
+  --farm FARM          a farm name which we want to work on
+  --clusters CLUSTERS  a cluster name which we want to work on
+  --debug DEBUG_ENV    debug mode for testing (will create a localhost database instead of remote)
+
 ```
 ***
 E.g. script run on DEBUG ENV!
