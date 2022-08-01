@@ -133,3 +133,5 @@ dmypy.json
 /resources/*
 /resources/*.yml
 *.yml
+# local database for testing
+debug.db
