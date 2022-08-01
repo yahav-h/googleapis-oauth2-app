@@ -35,6 +35,15 @@ optional arguments:
   --clusters CLUSTERS
   --debug DEBUG_ENV
 ```
+***
+E.g. script run on DEBUG ENV!
+```shell
+ $ ./venv/bin/python3 googleapis_Auth.py --farm my-farm-1 --clusters c1,c2,c3,c4 --debug 1
+```
+E.g. script run on PRODUCTION ENV!
+```shell
+ $ ./venv/bin/python3 googleapis_Auth.py --farm my-farm-1 --clusters c1,c2,c3,c4
+```
 
 ### NOTES:
-Using `-D` \ `--debug` will trigger a local database, this made for testing changes in the source code.
+Using `--debug` will trigger a local database, this made for testing changes in the source code.
