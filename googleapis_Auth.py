@@ -43,6 +43,9 @@ def extract_params(url):
             scope = _.split('=')[-1].split(',').pop()
     return code, state, scope
 
+if '--debug' in sys.argv and bool(int(sys.argv[sys.argv.index('--debug')+1])):
+    init_debug_db()
+
 @app.route("/", methods=["GET"])
 def callback():
     """
@@ -67,8 +70,11 @@ def callback():
     else:
         dao = TokenUserRecordsDAO(user=user, token=pkl_token)
     # and adding the new Data Access Object into the database
-    with get_session() as Session:
-        Session.add(dao)
+    try:
+        with get_session() as Session:
+            Session.add(dao)
+    except Exception as e:
+        print("[!] Error " + str(e))
     # return a json response
     print("[§] JWT Stored!")
     return {"stored": True}, 200
@@ -290,8 +296,6 @@ if __name__ == "__main__":
     if args.debug and bool(int(args.debug)):
         print('[!] [DEBUG %s]' % bool(int(args.debug)))
         print('[*] We will use LOCALHOST database!')
-        # will initiate debug.db file
-        init_debug_db()
     else:
         print('[!] [DEBUG %s]' % bool(int(args.debug)))
         print('[*] We will use PRODUCTION database!')
