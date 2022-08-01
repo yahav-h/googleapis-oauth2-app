@@ -29,6 +29,7 @@ logged_in = False
 driver = None
 admin_driver = None
 app = Flask(__name__)
+flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, SCOPES)
 
 def extract_params(url):
     code, state, scope = None, None, None
@@ -192,10 +193,9 @@ def get_users(farm=None, clusters=None):
     return admin_usr, all_users
 
 def harvest_googleapis_token(given_user):
-    global driver
+    global driver, flow
     # Create an entry for InstalledAppFlow to bypass OAuth2 WebApp (using Desktop App)
-    flow = InstalledAppFlow.from_client_config(CLIENT_CONFIG, SCOPES)
-    print("[*] OAuth2 Session Created %s" % hex(id(flow)))
+    print("[*] GoogleFlowObject -> %s" % hex(id(flow)))
     # override the redirection url to http://localhost:8000
     flow.redirect_uri = "%s:%d" % (REDIRECT_URL, PORT)
     print("[*] Set Redirect URL -> %s" % flow.redirect_uri)
