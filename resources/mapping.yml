@@ -1,5 +1,0 @@
-farm-1:
-  cluster-1:
-    - "userX@glab12.avanan.net:zxcvbn"
-    - "userY@glab12.avanan.net:asdfgh"
-    - "userZ@glab12.avanan.net:qwerty"
