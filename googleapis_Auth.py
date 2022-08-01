@@ -13,6 +13,8 @@ from database import get_session, init_debug_db
 from dao import TokenUserRecordsDAO
 from locators import OAuthUserConsentTags, GoogleConsoleSecurityTags, AdminLoginTags
 
+PORT = 8000
+HOST = '0.0.0.0'
 SCOPES = ['https://mail.google.com/', 'https://www.googleapis.com/auth/drive']
 PASSWORD = getsecuritypassword()
 CLIENT_CONFIG = getclientconfig()
@@ -73,7 +75,8 @@ def callback():
 
 def get_token_from_code(code, expected_state, scopes):
     # using OAuth2Session object to access OAuth2 Application
-    aad_auth = OAuth2Session(app_id, state=expected_state, scope=scopes, redirect_uri=REDIRECT_URL)
+    redirect = REDIRECT_URL + ":" + str(PORT)
+    aad_auth = OAuth2Session(app_id, state=expected_state, scope=scopes, redirect_uri=redirect)
     print("[*] OAuth2Session Initiated -> %s" % hex(id(aad_auth)))
     print("[*] fetching JWT")
     # fetching new token
@@ -92,7 +95,7 @@ class ServerThread(Thread):
     def __init__(self, app):
         super(ServerThread, self).__init__()
         # creating a server
-        self.srv = make_server('0.0.0.0', 8000, app)
+        self.srv = make_server(HOST, PORT, app)
         # keeping the Server Session Context in the Thread Scope
         self.ctx = app.app_context()
         # Pushing the Session Context
@@ -194,7 +197,7 @@ def harvest_googleapis_token(given_user):
     flow = InstalledAppFlow.from_client_config(CLIENT_CONFIG, SCOPES)
     print("[*] OAuth2 Session Created %s" % hex(id(flow)))
     # override the redirection url to http://localhost:8000
-    flow.redirect_uri = REDIRECT_URL
+    flow.redirect_uri = "%s:%d" % (REDIRECT_URL, PORT)
     print("[*] Set Redirect URL -> %s" % flow.redirect_uri)
     # retrieve authorization url and state
     authorization_url, _ = flow.authorization_url()
