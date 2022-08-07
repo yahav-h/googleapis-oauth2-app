@@ -277,19 +277,19 @@ if __name__ == "__main__":
         '--farm',
         metavar="FARM",
         type=str, required=True,
-        help="a farm name which we want to work on"
+        help="will use a specific farm | E.g. --farm farm-1 CLUSTER ..."
     )
     parser.add_argument(
         '--clusters',
         metavar="CLUSTERS",
         type=str, required=True,
-        help="a cluster name which we want to work on"
+        help="will use specific/s cluster/s of a farm | E.g. FARM ... --clusters c1,c2,3 || --clusters c1"
     )
     parser.add_argument(
         '--debug',
         metavar="DEBUG_ENV", type=str,
         required=False, default="0",
-        help="debug mode for testing (will create a localhost database instead of remote)"
+        help="will use a DEV instead of PRODUCTION database | E.g. FARM ... CLUSTERS ... --debug 1 || --debug 0"
     )
     args = parser.parse_args()
     # using debug mode to creat a local DB named `debug.db`

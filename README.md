@@ -26,9 +26,9 @@
 #### 4. Harvesting Tokens
 ```shell
   # Using on PRODUCTION database
-  $ ./venv3/bin/python3 ./google_api_Auth.py --farm farm-1 --clusters c1,c2,c3
+  $ ./venv3/bin/python3 ./googleapi_Auth.py --farm farm-1 --clusters c1,c2,c3
   # Using on DEV database
-  $ ./venv3/bin/python3 ./google_api_Auth.py --farm farm-1 --clusters c1,c2,c3 --debug 1 
+  $ ./venv3/bin/python3 ./googleapi_Auth.py --farm farm-1 --clusters c1,c2,c3 --debug 1 
 ```
 ---
 
