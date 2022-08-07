@@ -33,6 +33,8 @@
 ---
 
 ## Tool Configuration Files
+- you should create a `resources` folder within the main project directory.
+- it must contain the configuration files below (use the templates) 
 #### Configuration File : `resources/properties.yml`
 ```yaml
 # this configuration file should be edited prior to the execution
