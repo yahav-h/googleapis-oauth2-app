@@ -7,14 +7,16 @@ from webdriver_manager.chrome import ChromeDriverManager
 from yaml import load, Loader
 
 def loadmapping():
+    data = None
     with open(join(getcwd(), 'resources', 'mapping.yml'), 'r') as out_stream:
         data = load(out_stream, Loader)
-        return data
+    return data
 
 def loadproperties():
+    data = None
     with open(join(getcwd(), 'resources', 'properties.yml'), 'r') as out_stream:
         data = load(out_stream, Loader)
-        return data
+    return data
 
 def getdatatbaseinfo(): return loadproperties().get("database")
 def getclientconfig(): return loadproperties().get("oauth")

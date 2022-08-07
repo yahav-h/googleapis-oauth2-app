@@ -274,15 +274,27 @@ if __name__ == "__main__":
     os.system("clear")
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        '--user',
+        metavar="USER",
+        type=str, required=False,
+        help="will use a specific user | E.g. --user userX@subdomain.domain.com:null DBUG ..."
+    )
+    parser.add_argument(
+        '--password',
+        metavar="PASSWORD",
+        type=str, required=False,
+        help="will use the PASSWORD of a specific user | E.g. USER ... --password Abc123&*(] DBUG ..."
+    )
+    parser.add_argument(
         '--farm',
         metavar="FARM",
-        type=str, required=True,
+        type=str, required=False,
         help="will use a specific farm | E.g. --farm farm-1 CLUSTER ..."
     )
     parser.add_argument(
         '--clusters',
         metavar="CLUSTERS",
-        type=str, required=True,
+        type=str, required=False,
         help="will use specific/s cluster/s of a farm | E.g. FARM ... --clusters c1,c2,3 || --clusters c1"
     )
     parser.add_argument(
@@ -299,8 +311,13 @@ if __name__ == "__main__":
     else:
         print('[!] [DEBUG %s]' % bool(int(args.debug)))
         print('[*] We will use PRODUCTION database!')
-    # get all users associated to given FARM + CLUSTER from ./resources/mapping.json
-    admin_user, users = get_users(farm=args.farm, clusters=args.clusters)
+    if args.user:
+        user_admin, users = args.user, [args.user]
+        if args.password:
+            PASSWORD = args.password
+    else:
+        # get all users associated to given FARM + CLUSTER from ./resources/mapping.json
+        admin_user, users = get_users(farm=args.farm, clusters=args.clusters)
     if not admin_user:
         print("[*] Check your arguments and mapping file!")
         print("[!] Exiting...")
