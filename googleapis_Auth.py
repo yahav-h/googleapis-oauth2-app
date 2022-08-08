@@ -315,7 +315,7 @@ if __name__ == "__main__":
         user_admin, users = args.user, [args.user]
         if args.password:
             PASSWORD = args.password
-    else:
+    elif args.farm and args.clusters:
         # get all users associated to given FARM + CLUSTER from ./resources/mapping.json
         admin_user, users = get_users(farm=args.farm, clusters=args.clusters)
     if not admin_user:
