@@ -5,6 +5,7 @@ class OAuthUserConsentTags:
     NEXT_BUTTON = ('xpath', './/div[@data-primary-action-label]//button[@type="button"]/span')
     PASSWORD_FIELD = ('xpath', './/*[@type="password"]')
     ALLOW_BUTTON = ('xpath', './/span[contains(text(), "Allow")]')
+    ACCOUNT_SELECT_BUTTON = ('xpath', './/div[contains(text(), "Use another account")]')
 
 class AdminLoginTags:
     EMAIL_FIELD = ("xpath", './/*[contains(@type, "email") or contains(@autocomplete, "username")]')
