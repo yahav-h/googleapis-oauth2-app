@@ -25,6 +25,10 @@ def getsecuritypassword(): return loadproperties().get("security").get("password
 def getwebdriver():
     chrome_options = Options()
     d = DesiredCapabilities.CHROME
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-setuid-sandbox")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--remote-debugging-port=9222")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36")
     chrome_options.add_argument("--headless")
     d['loggingPrefs'] = {'browser': 'ALL'}
