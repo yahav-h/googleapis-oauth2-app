@@ -136,6 +136,10 @@ def user_consent_flow(target_user, authorization_url):
     # navigate to the authorization url
     driver.get(authorization_url)
     print("[*] Authorization URL Navigation Successful! ")
+    if "Choose an account" in driver.page_source:
+        print("choosing an account")
+        if driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).is_displayed():
+            driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).click()
     time.sleep(3)
     try:
         """
@@ -156,6 +160,7 @@ def user_consent_flow(target_user, authorization_url):
         time.sleep(3)
         if driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).click()
+            print("[+] click on next button")
         time.sleep(3)
         if driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).click()
