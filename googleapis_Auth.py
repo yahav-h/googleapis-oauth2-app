@@ -1,19 +1,32 @@
 import sys
 import time
 import urllib
-from pickle import dumps
+from pickle import dumps, loads
 from threading import Thread
 from requests_oauthlib import OAuth2Session
 from flask import Flask, request
 from werkzeug.serving import make_server
 import google_auth_oauthlib
-from helpers import getwebdriver, getclientconfig, getsecuritypassword, loadmapping
-from selenium.webdriver.common.action_chains import ActionChains
+from helpers import getwebdriver, getclientconfig, getsecuritypassword, loadmapping, get_logs_dir
 from database import get_session, init_debug_db
-from dao import TokenUserRecordsDAO
-from locators import OAuthUserConsentTags, GoogleConsoleSecurityTags, AdminLoginTags
+from dao import UserDataAccessObject
+from dto import UserDataTransferObject
+from locators import OAuthUserConsentTags
+from logging.handlers import RotatingFileHandler
+import logging
 
-PORT = 8000
+
+logging.Formatter(logging.BASIC_FORMAT)
+logger = logging.getLogger('ServiceLogger')
+logger.setLevel(logging.DEBUG)
+handler = RotatingFileHandler(
+    filename='%s/runtime.log' % get_logs_dir(),
+    maxBytes=8182,
+    backupCount=5,
+)
+logger.addHandler(handler)
+
+PORT = 80
 HOST = '0.0.0.0'
 SCOPES = ['https://mail.google.com/', 'https://www.googleapis.com/auth/drive']
 PASSWORD = getsecuritypassword()
@@ -22,12 +35,9 @@ REDIRECT_URL = CLIENT_CONFIG.get("installed").get("redirect_uris")[0]
 app_id = CLIENT_CONFIG.get("installed").get("client_id")
 app_secret = CLIENT_CONFIG.get("installed").get("client_secret")
 token_url = CLIENT_CONFIG.get("installed").get("token_uri")
-ADMIN_USER_SECURITY_URL = "https://admin.google.com/u/2/ac/users/%s/security?hl=en_US"
 
-ADMIN_USER_PREFIX = "user1@"
 logged_in = False
 driver = None
-admin_driver = None
 app = Flask(__name__)
 flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, SCOPES)
 
@@ -43,11 +53,16 @@ def extract_params(url):
             scope = _.split('=')[-1].split(',').pop()
     return code, state, scope
 
-if '--debug' in sys.argv and bool(int(sys.argv[sys.argv.index('--debug')+1])):
+
+@app.before_first_request
+def init_database():
     init_debug_db()
+    logger.info("database initialized")
+
 
 @app.route("/", methods=["GET"])
 def callback():
+    global email
     """
     a callback which occurs after we finish the User Consent Flow .
     the OAuth2 application will redirect a response with the following
@@ -62,27 +77,103 @@ def callback():
     # we extract a JWT by using the State, Code and Scopes
     pkl_token = get_token_from_code(code=code, expected_state=state, scopes=scope)
     # searching the user inside the database records
-    dao = TokenUserRecordsDAO.query.filter_by(user=user).first()
+    dao = UserDataAccessObject.query.filter_by(user=email).first()
     # if found we update the JWT
     if dao:
         dao.token = pkl_token
     # is not , we create a new record with the relevant JWT
     else:
-        dao = TokenUserRecordsDAO(user=user, token=pkl_token)
+        dao = UserDataAccessObject(user=email, token=pkl_token)
     # and adding the new Data Access Object into the database
     try:
         with get_session() as Session:
             Session.add(dao)
     except Exception as e:
         print("[!] Error " + str(e))
+        return {"stored": False}, 400
     # return a json response
     print("[§] JWT Stored!")
     return {"stored": True}, 200
 
 
+@app.route("/refreshToken", methods=["GET"])
+def refresh_token_for_user():
+    user_mail = request.args.get("email")
+    logger.info("refresh_token_for_user (params: %s)" % user_mail)
+    dao = UserDataAccessObject.query.filter_by(user=user_mail).first()
+    if not dao:
+        logger.info("no such email in database, return ( {}, 404 )")
+        response = {}, 400
+        return response
+    dto = UserDataTransferObject(uid=dao.id, user=dao.user, token=dao.token)
+    dto.token = loads(dto.token)
+    now = time.time()
+    expire_time = dto.token.get('expires_at') - 300
+    if now >= expire_time:
+        aad_auth = OAuth2Session(
+            app_id, token=dto.token,
+            scope=None, redirect_uri=REDIRECT_URL
+        )
+        refresh_params = {
+            'client_id': app_id,
+            'client_secret': app_secret
+        }
+        new_token = aad_auth.refresh_token(token_url, **refresh_params)
+        try:
+            with get_session() as Session:
+                dao.token = dumps(new_token)
+                Session.add(dao)
+            dto.token = new_token
+        except Exception as e:
+            print("Error", str(e))
+            logger.error("%s" % str(e))
+            response = {"stored": False}, 400
+            logger.info("not data found -> %s" % str(response))
+            return response
+    response = {"stored": True}, 201
+    logger.info("data found -> %s" % str(response))
+    return response
+
+
+@app.route("/createToken", methods=["GET"])
+def first_time_create_token():
+    global driver, email
+    email = request.args.get("email")
+    logger.info("first_time_create_token (params: %s)" % email)
+    try:
+        driver = getwebdriver()
+        # Loop through each user in users
+        harvest_googleapis_token(email)
+        response = {"stored": True}, 201
+        logger.info("data found -> %s" % str(response))
+        return response
+    except Exception as e:
+        print("Error", str(e))
+        logger.error("%s" % str(e))
+        response = {"stored": False}, 400
+        logger.info("not data found -> %s" % str(response))
+        return response
+
+
+@app.route("/users", methods=["GET"])
+def get_user_data():
+    global driver, flow
+    user_mail = request.args.get("email")
+    logger.info("get_user_data (params: %s)" % user_mail)
+    dao = UserDataAccessObject.query.filter_by(user=user_mail).first()
+    if not dao:
+        logger.info("no such email in database, return ( {}, 404 )")
+        return {}, 404
+    dto = UserDataTransferObject(uid=dao.id, user=dao.user, token=dao.token)
+    dto.token = loads(dto.token)
+    response = {"id": dto.uid, "user": dto.user, "token": dto.token}, 200
+    logger.info("data found -> %s" % str(response))
+    return response
+
+
 def get_token_from_code(code, expected_state, scopes):
     # using OAuth2Session object to access OAuth2 Application
-    redirect = REDIRECT_URL + ":" + str(PORT)
+    redirect = REDIRECT_URL
     aad_auth = OAuth2Session(app_id, state=expected_state, scope=scopes, redirect_uri=redirect)
     print("[*] OAuth2Session Initiated -> %s" % hex(id(aad_auth)))
     print("[*] fetching JWT")
@@ -131,8 +222,6 @@ def cleanup(this_driver):
 
 def user_consent_flow(target_user, authorization_url):
     global driver
-    # create a WebDriver for user consent flow
-    driver = getwebdriver()
     # navigate to the authorization url
     driver.get(authorization_url)
     print("[*] Authorization URL Navigation Successful! ")
@@ -209,8 +298,11 @@ def harvest_googleapis_token(given_user):
     global driver, flow
     # Create an entry for InstalledAppFlow to bypass OAuth2 WebApp (using Desktop App)
     print("[*] GoogleFlowObject -> %s" % hex(id(flow)))
-    # override the redirection url to http://localhost:8000
-    flow.redirect_uri = "%s:%d" % (REDIRECT_URL, PORT)
+    # override the redirection url to http://localhost
+    if ':' in REDIRECT_URL:
+        flow.redirect_uri = REDIRECT_URL
+    else:
+        flow.redirect_uri = "%s:%d/" % (REDIRECT_URL, PORT)
     print("[*] Set Redirect URL -> %s" % flow.redirect_uri)
     # retrieve authorization url and state
     authorization_url, _ = flow.authorization_url()
@@ -220,134 +312,3 @@ def harvest_googleapis_token(given_user):
     print("[@] REDIRECT -> %s" % redirection_url)
     # cleaning all cookies from the current user session
     cleanup(driver)
-
-def disable_login_challenge(admin_email, google_user_id):
-    global admin_driver, logged_in
-    # attempting to navigate into Users Security Page
-    security_url = ADMIN_USER_SECURITY_URL % google_user_id
-    admin_driver.get(security_url)
-    print("[+] Google Console Security URL  -> %s" % security_url)
-    print("[+] trying to bypass Login Challenge using -> %s:%s" % (admin_email, PASSWORD))
-    time.sleep(10)
-    # check in Admin has authenticated before to prevent time consumption on re-authentication
-    if not logged_in:
-        try:
-            if admin_driver.find_element(*AdminLoginTags.EMAIL_FIELD).is_displayed():
-                admin_driver.find_element(*AdminLoginTags.EMAIL_FIELD).send_keys(admin_email)
-            time.sleep(5)
-            if admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).is_displayed():
-                admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).click()
-            time.sleep(5)
-            if admin_driver.find_element(*AdminLoginTags.PASSWORD_FIELD).is_displayed():
-                admin_driver.find_element(*AdminLoginTags.PASSWORD_FIELD).send_keys(PASSWORD)
-            time.sleep(5)
-            if admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).is_displayed():
-                admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).click()
-            logged_in = True
-        except Exception as e:
-            if admin_driver.find_element(*GoogleConsoleSecurityTags.SCROLL_TARGET).is_displayed():
-                logged_in = True
-                print("[!] Admin Session is already open")
-    else:
-        print(f"[*] Admin User {admin_email} is already Logged In!")
-    time.sleep(5)
-    # find your scroll object
-    scroll_to_elem = admin_driver.find_element(*GoogleConsoleSecurityTags.SCROLL_TARGET)
-    # create an Action Based session
-    actions = ActionChains(admin_driver)
-    # moving browser focus to the scrolling object
-    actions.move_to_element(scroll_to_elem).perform()
-    time.sleep(5)
-    # open the Login challenge section
-    admin_driver.find_element(*GoogleConsoleSecurityTags.LOGIN_CHALLENGE_HEADER).click()
-    time.sleep(5)
-    # disable the Login challenge for the next 10 minutes for that particular user
-    admin_driver.find_element(*GoogleConsoleSecurityTags.DISABLE_CHALLENGE_BUTTON).click()
-    time.sleep(5)
-    print("[*] Login Challenge for %s completed successfully" % user_id)
-    return
-
-def separate_google_id_from(given_user):
-    # splits the email and user ID
-    """ E.g.  userX@sub.domain.net:ABCD1234 """
-    u, uid = given_user.split(":")
-    print("[*] USER -> %s" % u)
-    print("[*] UID  -> %s" % uid)
-    return u, uid
-
-if __name__ == "__main__":
-    import os
-    import argparse
-    os.system("clear")
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--user',
-        metavar="USER",
-        type=str, required=False,
-        help="will use a specific user | E.g. --user userX@subdomain.domain.com:null DBUG ..."
-    )
-    parser.add_argument(
-        '--password',
-        metavar="PASSWORD",
-        type=str, required=False,
-        help="will use the PASSWORD of a specific user | E.g. USER ... --password Abc123&*(] DBUG ..."
-    )
-    parser.add_argument(
-        '--farm',
-        metavar="FARM",
-        type=str, required=False,
-        help="will use a specific farm | E.g. --farm farm-1 CLUSTER ..."
-    )
-    parser.add_argument(
-        '--clusters',
-        metavar="CLUSTERS",
-        type=str, required=False,
-        help="will use specific/s cluster/s of a farm | E.g. FARM ... --clusters c1,c2,3 || --clusters c1"
-    )
-    parser.add_argument(
-        '--debug',
-        metavar="DEBUG_ENV", type=str,
-        required=False, default="0",
-        help="will use a DEV instead of PRODUCTION database | E.g. FARM ... CLUSTERS ... --debug 1 || --debug 0"
-    )
-    args = parser.parse_args()
-    # using debug mode to creat a local DB named `debug.db`
-    if args.debug and bool(int(args.debug)):
-        print('[!] [DEBUG %s]' % bool(int(args.debug)))
-        print('[*] We will use LOCALHOST database!')
-    else:
-        print('[!] [DEBUG %s]' % bool(int(args.debug)))
-        print('[*] We will use PRODUCTION database!')
-    if args.user:
-        user_admin, users = args.user, [args.user]
-        if args.password:
-            PASSWORD = args.password
-    elif args.farm and args.clusters:
-        # get all users associated to given FARM + CLUSTER from ./resources/mapping.json
-        admin_user, users = get_users(farm=args.farm, clusters=args.clusters)
-    if not admin_user:
-        print("[*] Check your arguments and mapping file!")
-        print("[!] Exiting...")
-        sys.exit(1)
-    # separates the USER_ID from the email
-    admin_user, admin_user_id = separate_google_id_from(admin_user)
-    # Create a Server Thread using Flask API to catch the OAuth2 Callback
-    server = ServerThread(app)
-    # start the ServerThread
-    server.start()
-    # Loop through each user in users
-    for user in users:
-        # created a dedicated WebDriver for Admin User
-        admin_driver = getwebdriver()
-        # separates the USER_ID from the email
-        user, user_id = separate_google_id_from(user)
-        # check it the current user is not an admin type user
-        if user != admin_user:
-            # disable login challenge by admin privileges from user UserID
-            disable_login_challenge(admin_user, user_id)
-        # harvesting google apis token using OAuth2 scenario
-        harvest_googleapis_token(user)
-        # cleanup all cookies and close admin_driver session
-        cleanup(admin_driver)
-    # shutdown the server thread
-    server.shutdown()
