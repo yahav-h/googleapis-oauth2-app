@@ -1,4 +1,3 @@
-import sys
 import time
 import urllib
 from pickle import dumps, loads
@@ -260,39 +259,6 @@ def user_consent_flow(target_user, authorization_url):
     # catch the current url
     url = driver.current_url
     return url, driver
-
-def get_users(farm=None, clusters=None):
-    print("[!] Reading mapping file...")
-    print("[!] Using FARM %s" % farm)
-    print("[!] Using CLUSTERS %s" % clusters)
-    admin_usr = None
-    all_users = []
-    # load users mapping file
-    data = loadmapping()
-    # exit if the given farm does not exist
-    if not farm or farm not in data:
-        print("Must have Farm as argument!")
-        print(f"Farm argument should not have spaces!") if ' ' in farm else None
-        sys.exit(1)
-    # override data with farm object
-    data = data.get(farm)
-    # split all clusters to a list
-    clusters = clusters.split(',')
-    # Loop through each cluster in the given clusters
-    for cluster in clusters:
-        # if cluster does not exist in data, skip
-        if cluster not in data:
-            print(f"[ERROR] Cluster {cluster} was not found under Farm {farm}!")
-            continue
-        # extend users list with the associated users undr the cluster object
-        all_users.extend(data.get(cluster))
-    # loop over the extracted users and find the Admin User
-    for i, usr in enumerate(all_users):
-        # check it the current user is Admin user
-        if ADMIN_USER_PREFIX in usr:
-            admin_usr = usr or all_users[i]
-            break
-    return admin_usr, all_users
 
 def harvest_googleapis_token(given_user):
     global driver, flow
