@@ -12,6 +12,7 @@ from dao import UserDataAccessObject
 from dto import UserDataTransferObject
 from locators import OAuthUserConsentTags
 from logging.handlers import RotatingFileHandler
+from datetime import datetime
 import logging
 
 
@@ -98,10 +99,10 @@ def callback():
 @app.route("/refreshToken", methods=["GET"])
 def refresh_token_for_user():
     user_mail = request.args.get("email")
-    logger.info("refresh_token_for_user (params: %s)" % user_mail)
+    logger.info("%s | refresh_token_for_user (params: %s)" % (datetime.now().isoformat(), user_mail))
     dao = UserDataAccessObject.query.filter_by(user=user_mail).first()
     if not dao:
-        logger.info("no such email in database, return ( {}, 404 )")
+        logger.info("%s | no such email in database, return ( {}, 404 )" % datetime.now().isoformat())
         response = {}, 400
         return response
     dto = UserDataTransferObject(uid=dao.id, user=dao.user, token=dao.token)
@@ -127,10 +128,10 @@ def refresh_token_for_user():
             print("Error", str(e))
             logger.error("%s" % str(e))
             response = {"stored": False}, 400
-            logger.info("not data found -> %s" % str(response))
+            logger.info("%s | not data found -> %s" % (datetime.now().isoformat(), str(response)))
             return response
     response = {"stored": True}, 201
-    logger.info("data found -> %s" % str(response))
+    logger.info("%s | data found -> %s" % (datetime.now().isoformat(), str(response)))
     return response
 
 
@@ -138,19 +139,19 @@ def refresh_token_for_user():
 def first_time_create_token():
     global driver, email
     email = request.args.get("email")
-    logger.info("first_time_create_token (params: %s)" % email)
+    logger.info("%s | first_time_create_token (params: %s)" % (datetime.now().isoformat(), email))
     try:
         driver = getwebdriver()
         # Loop through each user in users
         harvest_googleapis_token(email)
         response = {"stored": True}, 201
-        logger.info("data found -> %s" % str(response))
+        logger.info("%s | data found -> %s" % (datetime.now().isoformat(), str(response)))
         return response
     except Exception as e:
         print("Error", str(e))
-        logger.error("%s" % str(e))
+        logger.error("%s | %s" % (datetime.now().isoformat(), str(e)))
         response = {"stored": False}, 400
-        logger.info("not data found -> %s" % str(response))
+        logger.info("%s | not data found -> %s" % (datetime.now().isoformat(), str(response)))
         return response
 
 
@@ -158,15 +159,15 @@ def first_time_create_token():
 def get_user_data():
     global driver, flow
     user_mail = request.args.get("email")
-    logger.info("get_user_data (params: %s)" % user_mail)
+    logger.info("%s | get_user_data (params: %s)" % (datetime.now().isoformat(), user_mail))
     dao = UserDataAccessObject.query.filter_by(user=user_mail).first()
     if not dao:
-        logger.info("no such email in database, return ( {}, 404 )")
+        logger.info("%s | no such email in database, return ( {}, 404 )" % datetime.now().isoformat())
         return {}, 404
     dto = UserDataTransferObject(uid=dao.id, user=dao.user, token=dao.token)
     dto.token = loads(dto.token)
     response = {"id": dto.uid, "user": dto.user, "token": dto.token}, 200
-    logger.info("data found -> %s" % str(response))
+    logger.info("%s | data found -> %s" % (datetime.now().isoformat(), str(response)))
     return response
 
 
