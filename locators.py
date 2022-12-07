@@ -16,3 +16,7 @@ class GoogleConsoleSecurityTags:
     SCROLL_TARGET = ("xpath", './/header[contains(text(), "Application-specific password")]')
     LOGIN_CHALLENGE_HEADER = ("xpath", './/header[contains(text(), "Login challenge")]')
     DISABLE_CHALLENGE_BUTTON = ("xpath", './/span[contains(text(), "Turn off for 10 mins")]')
+
+class GoogleConsoleUsersTags:
+    SECURITY_HEADER = ("xpath", './/h4[contains(text(), "Security")]')
+    GENERIC_USER = ("xpath", './/div[contains(text(), "%s")]/..//..//..//a')
