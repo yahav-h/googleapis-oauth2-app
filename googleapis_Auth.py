@@ -75,7 +75,11 @@ def callback():
 
     :return: json={"stored": True} , status_code=200
     """
-    code, state, scope = extract_params(request.url)
+    # code, state, scope = extract_params(request.url)
+    params = request.args
+    code = params.get("code")
+    state = params.get("state")
+    scope = params.get("scope")
     # we extract a JWT by using the State, Code and Scopes
     pkl_token = get_token_from_code(code=code, expected_state=state, scopes=scope)
     # searching the user inside the database records
@@ -91,10 +95,10 @@ def callback():
         with get_session() as Session:
             Session.add(dao)
     except Exception as e:
-        print("[!] Error " + str(e))
+        logger.error("%s | error | %s" % (datetime.now().isoformat(), str(e)))
         return {"stored": False}, 400
     # return a json response
-    print("[§] JWT Stored!")
+    logger.info("%s | JWT Stored" % datetime.now().isoformat())
     return {"stored": True}, 200
 
 
@@ -177,11 +181,11 @@ def get_token_from_code(code, expected_state, scopes):
     # using OAuth2Session object to access OAuth2 Application
     redirect = REDIRECT_URL
     aad_auth = OAuth2Session(app_id, state=expected_state, scope=scopes, redirect_uri=redirect)
-    print("[*] OAuth2Session Initiated -> %s" % hex(id(aad_auth)))
-    print("[*] fetching JWT")
+    logger.info("%s | OAuth2Session Initiated -> %s" % (datetime.now().isoformat(), hex(id(aad_auth))))
+    logger.info("%s | fetching JWT" % datetime.now().isoformat())
     # fetching new token
     token = aad_auth.fetch_token(token_url, client_secret=app_secret, code=code)
-    print("[+] Got JWT -> %s" % token)
+    logger.info("%s | Got JWT -> %s" % (datetime.now().isoformat(), token))
     # dumping as bytes using pickle
     return dumps(token)
 
@@ -226,9 +230,9 @@ def user_consent_flow(target_user, authorization_url):
     global driver
     # navigate to the authorization url
     driver.get(authorization_url)
-    print("[*] Authorization URL Navigation Successful! ")
+    logger.info("%s | Authorization URL Navigation Successful" % datetime.now().isoformat())
     if "Choose an account" in driver.page_source:
-        print("choosing an account")
+        logger.debug("%s | choosing an account page appear" % datetime.now().isoformat())
         if driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).click()
     time.sleep(3)
@@ -240,25 +244,25 @@ def user_consent_flow(target_user, authorization_url):
         """
         if driver.find_element(*OAuthUserConsentTags.EMAIL_FIELD).is_displayed():
             driver.find_element(*OAuthUserConsentTags.EMAIL_FIELD).send_keys(target_user)
-            print("[+] set username -> %s" % target_user)
+            logger.debug("%s | set username -> %s" % (datetime.now().isoformat(), target_user))
         time.sleep(3)
         if driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).click()
         time.sleep(3)
         if driver.find_element(*OAuthUserConsentTags.PASSWORD_FIELD).is_displayed():
             driver.find_element(*OAuthUserConsentTags.PASSWORD_FIELD).send_keys(PASSWORD)
-            print("[+] set password -> %s" % PASSWORD)
+            logger.debug("%s | set password -> %s" % (datetime.now().isoformat(), PASSWORD))
         time.sleep(3)
         if driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).click()
-            print("[+] click on next button")
+            logger.debug("%s | click on next button" % datetime.now().isoformat())
         time.sleep(3)
         if driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).click()
-            print("[+] set allow access -> %s" % True)
+            logger.info("[+] set allow access -> %s" % True)
         time.sleep(3)
     except Exception as e:
-        print(e)
+        logger.error("%s | error | %s" % (datetime.now().isoformat(), str(e)))
     # catch the current url
     url = driver.current_url
     return url, driver
@@ -267,20 +271,21 @@ def harvest_googleapis_token(given_user):
     global driver, flow
     driver = getwebdriver()
     # Create an entry for InstalledAppFlow to bypass OAuth2 WebApp (using Desktop App)
-    print("[*] GoogleFlowObject -> %s" % hex(id(flow)))
+    logger.info("%s | GoogleFlowObject -> %s" % (datetime.now().isoformat(), hex(id(flow))))
     # override the redirection url to http://localhost
     if ':' in REDIRECT_URL:
         flow.redirect_uri = REDIRECT_URL
     else:
         flow.redirect_uri = "%s:%d/" % (REDIRECT_URL, PORT)
-    print("[*] Set Redirect URL -> %s" % flow.redirect_uri)
+    logger.info("%s | Set Redirect URL -> %s" % (datetime.now().isoformat(), flow.redirect_uri))
     # retrieve authorization url and state
     authorization_url, _ = flow.authorization_url()
-    print("[*] Set Authorization URL -> %s" % authorization_url)
+    logger.info("%s | Set Authorization URL -> %s" % (datetime.now().isoformat(), authorization_url))
     # delegate the current user and authorization url to approve user consent flow
     redirection_url, driver = user_consent_flow(given_user, authorization_url)
-    print("[@] REDIRECT -> %s" % redirection_url)
+    logger.info("%s | REDIRECT -> %s" % (datetime.now().isoformat(), redirection_url))
     # cleaning all cookies from the current user session
+    driver.delete_all_cookies()
     cleanup(driver)
     return
 
@@ -290,15 +295,19 @@ def disable_login_challenge(email):
     # building admin_email
     admin_email = admin_email % email.split("@")[-1]
     # check in Admin has authenticated before to prevent time consumption on re-authentication
+    logger.info("%s | admin_login_flow (params: %s, %s" % (datetime.now().isoformat(), admin_driver, admin_email))
     admin_login_flow(admin_driver=admin_driver, admin_email=admin_email)
     time.sleep(5)
-    locator = GoogleConsoleUsersTags.GENERIC_USER
-    if admin_driver.find_element(*(locator[0], locator[-1] % email)).is_displayed():
-        admin_driver.find_element(*(locator[0], locator[-1] % email)).click()
+    method, locator = GoogleConsoleUsersTags.GENERIC_USER
+    locator = locator % email
+    if admin_driver.find_element(*(method, locator)).is_displayed():
+        admin_driver.find_element(*(method, locator)).click()
+        logger.info("%s | enters into user %s console page" % (datetime.now().isoformat(), email))
     time.sleep(5)
     # enters Security View
     if admin_driver.find_element(*GoogleConsoleUsersTags.SECURITY_HEADER).is_displayed():
         admin_driver.find_element(*GoogleConsoleUsersTags.SECURITY_HEADER).click()
+        logger.info("%s | enters into Security View" % datetime.now().isoformat())
     time.sleep(5)
     # find your scroll object
     scroll_to_elem = admin_driver.find_element(*GoogleConsoleSecurityTags.SCROLL_TARGET)
@@ -308,10 +317,14 @@ def disable_login_challenge(email):
     actions.move_to_element(scroll_to_elem).perform()
     time.sleep(5)
     # open the Login challenge section
-    admin_driver.find_element(*GoogleConsoleSecurityTags.LOGIN_CHALLENGE_HEADER).click()
+    if admin_driver.find_element(*GoogleConsoleSecurityTags.LOGIN_CHALLENGE_HEADER).is_displayed():
+        admin_driver.find_element(*GoogleConsoleSecurityTags.LOGIN_CHALLENGE_HEADER).click()
+        logger.info("%s | open login challenge view" % datetime.now().isoformat())
     time.sleep(5)
     # disable the Login challenge for the next 10 minutes for that particular user
-    admin_driver.find_element(*GoogleConsoleSecurityTags.DISABLE_CHALLENGE_BUTTON).click()
+    if admin_driver.find_element(*GoogleConsoleSecurityTags.DISABLE_CHALLENGE_BUTTON).is_displayed():
+        admin_driver.find_element(*GoogleConsoleSecurityTags.DISABLE_CHALLENGE_BUTTON).click()
+        logger.info("%s | disabling login challenge on user %s for 10 minutes" % (datetime.now().isoformat(), email))
     time.sleep(5)
     admin_driver.delete_all_cookies()
     cleanup(admin_driver)
