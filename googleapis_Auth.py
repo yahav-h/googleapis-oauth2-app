@@ -295,7 +295,12 @@ def disable_login_challenge(email):
     admin_login_flow(admin_driver=admin_driver, admin_email=admin_email)
     time.sleep(5)
     method, locator = GoogleConsoleUsersTags.GENERIC_USER
-    locator = locator % email.split("@")[0]
+    locator = locator.replace("%s", email.split("@")[0])
+
+    with open("page_source.html", "w") as f:
+        f.write(admin_driver.page_source)
+        f.close()
+
     if admin_driver.find_element(*(method, locator)).is_displayed():
         admin_driver.find_element(*(method, locator)).click()
         logger.info("%s | enters into user %s console page" % (datetime.now().isoformat(), email))
