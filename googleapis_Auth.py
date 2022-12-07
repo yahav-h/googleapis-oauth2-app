@@ -35,9 +35,11 @@ REDIRECT_URL = CLIENT_CONFIG.get("installed").get("redirect_uris")[0]
 app_id = CLIENT_CONFIG.get("installed").get("client_id")
 app_secret = CLIENT_CONFIG.get("installed").get("client_secret")
 token_url = CLIENT_CONFIG.get("installed").get("token_uri")
-
+ADMIN_USERS_URL = "https://admin.google.com/u/4/ac/users"
+admin_email = "user1@%s"
 logged_in = False
 driver = None
+admin_driver = None
 app = Flask(__name__)
 flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, SCOPES)
 
@@ -137,12 +139,12 @@ def refresh_token_for_user():
 
 @app.route("/createToken", methods=["GET"])
 def first_time_create_token():
-    global driver, email
+    global admin_driver, driver, email
     email = request.args.get("email")
     logger.info("%s | first_time_create_token (params: %s)" % (datetime.now().isoformat(), email))
     try:
-        driver = getwebdriver()
         # Loop through each user in users
+        disable_login_challenge(email)
         harvest_googleapis_token(email)
         response = {"stored": True}, 201
         logger.info("%s | data found -> %s" % (datetime.now().isoformat(), str(response)))
@@ -263,6 +265,7 @@ def user_consent_flow(target_user, authorization_url):
 
 def harvest_googleapis_token(given_user):
     global driver, flow
+    driver = getwebdriver()
     # Create an entry for InstalledAppFlow to bypass OAuth2 WebApp (using Desktop App)
     print("[*] GoogleFlowObject -> %s" % hex(id(flow)))
     # override the redirection url to http://localhost
@@ -279,3 +282,65 @@ def harvest_googleapis_token(given_user):
     print("[@] REDIRECT -> %s" % redirection_url)
     # cleaning all cookies from the current user session
     cleanup(driver)
+    return
+
+def disable_login_challenge(email):
+    global admin_driver, admin_email
+    admin_driver = getwebdriver()
+    # building admin_email
+    admin_email = admin_email % email.split("@")[-1]
+    # check in Admin has authenticated before to prevent time consumption on re-authentication
+    admin_login_flow(admin_driver=admin_driver, admin_email=admin_email)
+    time.sleep(5)
+    locator = GoogleConsoleUsersTags.GENERIC_USER
+    if admin_driver.find_element(*(locator[0], locator[-1] % email)).is_displayed():
+        admin_driver.find_element(*(locator[0], locator[-1] % email)).click()
+    time.sleep(5)
+    # enters Security View
+    if admin_driver.find_element(*GoogleConsoleUsersTags.SECURITY_HEADER).is_displayed():
+        admin_driver.find_element(*GoogleConsoleUsersTags.SECURITY_HEADER).click()
+    time.sleep(5)
+    # find your scroll object
+    scroll_to_elem = admin_driver.find_element(*GoogleConsoleSecurityTags.SCROLL_TARGET)
+    # create an Action Based session
+    actions = ActionChains(admin_driver)
+    # moving browser focus to the scrolling object
+    actions.move_to_element(scroll_to_elem).perform()
+    time.sleep(5)
+    # open the Login challenge section
+    admin_driver.find_element(*GoogleConsoleSecurityTags.LOGIN_CHALLENGE_HEADER).click()
+    time.sleep(5)
+    # disable the Login challenge for the next 10 minutes for that particular user
+    admin_driver.find_element(*GoogleConsoleSecurityTags.DISABLE_CHALLENGE_BUTTON).click()
+    time.sleep(5)
+    admin_driver.delete_all_cookies()
+    cleanup(admin_driver)
+    return
+
+def admin_login_flow(admin_driver, admin_email):
+    global logged_in
+    # attempting to navigate into Users Security Page
+    admin_driver.get(ADMIN_USERS_URL)
+    print("[+] Google Console Security URL  -> %s" % ADMIN_USERS_URL)
+    print("[+] trying to bypass Login Challenge using -> %s:%s" % (admin_email, PASSWORD))
+    time.sleep(10)
+    if not logged_in:
+        try:
+            if admin_driver.find_element(*AdminLoginTags.EMAIL_FIELD).is_displayed():
+                admin_driver.find_element(*AdminLoginTags.EMAIL_FIELD).send_keys(admin_email)
+            time.sleep(5)
+            if admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).is_displayed():
+                admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).click()
+            time.sleep(5)
+            if admin_driver.find_element(*AdminLoginTags.PASSWORD_FIELD).is_displayed():
+                admin_driver.find_element(*AdminLoginTags.PASSWORD_FIELD).send_keys(PASSWORD)
+            time.sleep(5)
+            if admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).is_displayed():
+                admin_driver.find_element(*AdminLoginTags.NEXT_BUTTON).click()
+            logged_in = True
+        except Exception as e:
+            if admin_driver.find_element(*GoogleConsoleSecurityTags.SCROLL_TARGET).is_displayed():
+                logged_in = True
+                print("[!] Admin Session is already open")
+    else:
+        print(f"[*] Admin User {admin_email} is already Logged In!")
