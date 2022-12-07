@@ -1,5 +1,6 @@
 from os.path import join, dirname, abspath
 from selenium import webdriver
+from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 from yaml import load, Loader
