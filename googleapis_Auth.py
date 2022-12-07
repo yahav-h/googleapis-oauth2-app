@@ -297,7 +297,7 @@ def disable_login_challenge(email):
     method, locator = GoogleConsoleUsersTags.GENERIC_USER
     locator = locator.replace("%s", email.split("@")[0])
 
-    with open("page_source.html", "w") as f:
+    with open("./page_source.html", "w") as f:
         f.write(admin_driver.page_source)
         f.close()
 
