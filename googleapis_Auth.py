@@ -75,11 +75,7 @@ def callback():
 
     :return: json={"stored": True} , status_code=200
     """
-    # code, state, scope = extract_params(request.url)
-    params = request.args
-    code = params.get("code")
-    state = params.get("state")
-    scope = params.get("scope")
+    code, state, scope = extract_params(request.url)
     # we extract a JWT by using the State, Code and Scopes
     pkl_token = get_token_from_code(code=code, expected_state=state, scopes=scope)
     # searching the user inside the database records
