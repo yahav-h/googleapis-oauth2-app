@@ -13,6 +13,7 @@ class AdminLoginTags:
     PASSWORD_FIELD = ("xpath", './/input[contains(@type, "password") or contains(@name, "password")]')
 
 class GoogleConsoleSecurityTags:
+    SECURITY_HEADER = ("xpath", './/h4[contains(text(), "Security")]')
     SCROLL_TARGET = ("xpath", './/header[contains(text(), "Application-specific password")]')
     LOGIN_CHALLENGE_HEADER = ("xpath", './/header[contains(text(), "Login challenge")]')
     DISABLE_CHALLENGE_BUTTON = ("xpath", './/span[contains(text(), "Turn off for 10 mins")]')
