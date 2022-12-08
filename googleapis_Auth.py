@@ -22,7 +22,7 @@ REDIRECT_URL = CLIENT_CONFIG.get("installed").get("redirect_uris")[0]
 app_id = CLIENT_CONFIG.get("installed").get("client_id")
 app_secret = CLIENT_CONFIG.get("installed").get("client_secret")
 token_url = CLIENT_CONFIG.get("installed").get("token_uri")
-ADMIN_USER_SECURITY_URL = "https://admin.google.com/u/2/ac/users/%s/security?hl=en_US"
+ADMIN_USER_SECURITY_URL = "https://admin.google.com/u/2/ac/users"
 
 ADMIN_USER_PREFIX = "user1@"
 logged_in = False
@@ -140,7 +140,7 @@ def user_consent_flow(target_user, authorization_url):
         print("choosing an account")
         if driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).click()
-    time.sleep(3)
+    time.sleep(5)
     try:
         """
             Complete the user consent flow using Selenium . 
@@ -150,22 +150,22 @@ def user_consent_flow(target_user, authorization_url):
         if driver.find_element(*OAuthUserConsentTags.EMAIL_FIELD).is_displayed():
             driver.find_element(*OAuthUserConsentTags.EMAIL_FIELD).send_keys(target_user)
             print("[+] set username -> %s" % target_user)
-        time.sleep(3)
+        time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).click()
-        time.sleep(3)
+        time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.PASSWORD_FIELD).is_displayed():
             driver.find_element(*OAuthUserConsentTags.PASSWORD_FIELD).send_keys(PASSWORD)
             print("[+] set password -> %s" % PASSWORD)
-        time.sleep(3)
+        time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).click()
             print("[+] click on next button")
-        time.sleep(3)
+        time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).click()
             print("[+] set allow access -> %s" % True)
-        time.sleep(3)
+        time.sleep(5)
     except Exception as e:
         print(e)
     # catch the current url
@@ -221,10 +221,12 @@ def harvest_googleapis_token(given_user):
     # cleaning all cookies from the current user session
     cleanup(driver)
 
-def disable_login_challenge(admin_email, google_user_id):
+def disable_login_challenge(admin_email, google_user):
     global admin_driver, logged_in
+    admin_driver = getwebdriver()
     # attempting to navigate into Users Security Page
-    security_url = ADMIN_USER_SECURITY_URL % google_user_id
+    # security_url = ADMIN_USER_SECURITY_URL % google_user
+    security_url = ADMIN_USER_SECURITY_URL
     admin_driver.get(security_url)
     print("[+] Google Console Security URL  -> %s" % security_url)
     print("[+] trying to bypass Login Challenge using -> %s:%s" % (admin_email, PASSWORD))
@@ -251,6 +253,12 @@ def disable_login_challenge(admin_email, google_user_id):
     else:
         print(f"[*] Admin User {admin_email} is already Logged In!")
     time.sleep(5)
+    # click the right user mail
+    admin_driver.find_element("xpath", './/div[contains(text(), "%s")]/../../..//a' % user).click()
+    time.sleep(5)
+    # navigate to the Security View
+    admin_driver.find_element(*GoogleConsoleSecurityTags.SECURITY_HEADER).click()
+    time.sleep(5)
     # find your scroll object
     scroll_to_elem = admin_driver.find_element(*GoogleConsoleSecurityTags.SCROLL_TARGET)
     # create an Action Based session
@@ -263,8 +271,8 @@ def disable_login_challenge(admin_email, google_user_id):
     time.sleep(5)
     # disable the Login challenge for the next 10 minutes for that particular user
     admin_driver.find_element(*GoogleConsoleSecurityTags.DISABLE_CHALLENGE_BUTTON).click()
-    time.sleep(5)
-    print("[*] Login Challenge for %s completed successfully" % user_id)
+    print("[*] Login Challenge for %s completed successfully" % user)
+    cleanup(admin_driver)
     return
 
 def separate_google_id_from(given_user):
@@ -274,6 +282,7 @@ def separate_google_id_from(given_user):
     print("[*] USER -> %s" % u)
     print("[*] UID  -> %s" % uid)
     return u, uid
+
 
 if __name__ == "__main__":
     import os
@@ -319,7 +328,7 @@ if __name__ == "__main__":
         print('[!] [DEBUG %s]' % bool(int(args.debug)))
         print('[*] We will use PRODUCTION database!')
     if args.user:
-        user_admin, users = args.user, [args.user]
+        admin_user, users = f"{ADMIN_USER_PREFIX}%s" % args.user.split("@")[-1], [args.user]
         if args.password:
             PASSWORD = args.password
     elif args.farm and args.clusters:
@@ -330,7 +339,7 @@ if __name__ == "__main__":
         print("[!] Exiting...")
         sys.exit(1)
     # separates the USER_ID from the email
-    admin_user, admin_user_id = separate_google_id_from(admin_user)
+    # admin_user, admin_user_id = separate_google_id_from(admin_user)
     # Create a Server Thread using Flask API to catch the OAuth2 Callback
     server = ServerThread(app)
     # start the ServerThread
@@ -338,16 +347,13 @@ if __name__ == "__main__":
     # Loop through each user in users
     for user in users:
         # created a dedicated WebDriver for Admin User
-        admin_driver = getwebdriver()
         # separates the USER_ID from the email
-        user, user_id = separate_google_id_from(user)
+        # user, user_id = separate_google_id_from(user)
         # check it the current user is not an admin type user
         if user != admin_user:
             # disable login challenge by admin privileges from user UserID
-            disable_login_challenge(admin_user, user_id)
+            disable_login_challenge(admin_user, user)
         # harvesting google apis token using OAuth2 scenario
         harvest_googleapis_token(user)
-        # cleanup all cookies and close admin_driver session
-        cleanup(admin_driver)
     # shutdown the server thread
     server.shutdown()
