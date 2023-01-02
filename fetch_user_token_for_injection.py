@@ -76,9 +76,11 @@ def oauth2callback():
       data = pickle.dumps(r.json())
       b64_data = base64.b64encode(data).decode("utf-8")
       print({"data": b64_data}, 200)
+      return {"data": b64_data}, 200
     except Exception as e:
       print("Error:", str(e))
       print({"data": None}, 400)
+      return {"data": None}, 400
 
 
 if __name__ == '__main__':
