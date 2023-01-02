@@ -8,7 +8,7 @@ import sys
 
 db_session = None
 Base = None
-if '--debug' in sys.argv and bool(int(sys.argv[sys.argv.index('--debug')+1])):
+if not getdatatbaseinfo().get("host"):
     debug_db_path = join(dirname(abspath(__file__)), "debug.db")
     engine = create_engine(f"sqlite:///{debug_db_path}", pool_pre_ping=True)
     db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
