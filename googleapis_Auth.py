@@ -66,6 +66,7 @@ def init_database():
     init_debug_db()
     logger.info("database initialized")
 
+
 @app.route("/inject", methods=["POST"])
 def inject_new_token_by_user():
     user = request.args.get("email")
