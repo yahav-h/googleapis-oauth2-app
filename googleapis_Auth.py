@@ -18,7 +18,18 @@ from datetime import datetime
 import logging
 
 
-PORT = 8000
+logging.Formatter(logging.BASIC_FORMAT)
+logger = logging.getLogger('ServiceLogger')
+logger.setLevel(logging.DEBUG)
+handler = RotatingFileHandler(
+    filename='%s/runtime.log' % get_logs_dir(),
+    maxBytes=8182,
+    backupCount=5,
+)
+logger.addHandler(handler)
+
+
+PORT = 80
 HOST = '0.0.0.0'
 SCOPES = ['https://mail.google.com/', 'https://www.googleapis.com/auth/drive']
 PASSWORD = getsecuritypassword()
@@ -36,8 +47,6 @@ admin_driver = None
 app = Flask(__name__)
 flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, SCOPES)
 
-if not getdatatbaseinfo().get("host"):
-    init_debug_db()
 
 def extract_params(url):
     code, state, scope = None, None, None
@@ -65,38 +74,45 @@ def callback():
     :return: json={"stored": True} , status_code=200
     """
     code, state, scope = extract_params(request.url)
+    logger.debug("%s | callback (params: %s, %s, %s)" % (datetime.now().isoformat(), code, state, scope))
     # we extract a JWT by using the State, Code and Scopes
     pkl_token = get_token_from_code(code=code, expected_state=state, scopes=scope)
     # searching the user inside the database records
-    dao = TokenUserRecordsDAO.query.filter_by(user=user).first()
+    dao = UserDataAccessObject.query.filter_by(user=user).first()
     # if found we update the JWT
     if dao:
         dao.token = pkl_token
     # is not , we create a new record with the relevant JWT
     else:
-        dao = TokenUserRecordsDAO(user=user, token=pkl_token)
+        dao = UserDataAccessObject(user=user, token=pkl_token)
     # and adding the new Data Access Object into the database
     try:
         with get_session() as Session:
             Session.add(dao)
+        logger.debug("[§] JWT Stored!")
+        context = {"stored": True}, 200
+        logger.debug("%s | callback (returns: %s)" % (datetime.now().isoformat(), context))
+        return context
     except Exception as e:
-        print("[!] Error " + str(e))
-    # return a json response
-    print("[§] JWT Stored!")
-    return {"stored": True}, 200
+        logger.debug("%s | callback (error: %s)" % (datetime.now().isoformat(), e))
+        context = {"stored": False}, 400
+        logger.debug("%s | callback (returns: %s)" % (datetime.now().isoformat(), context))
+        return context
 
 
 def get_token_from_code(code, expected_state, scopes):
+    logger.debug("%s | get_token_from_code (params: %s, %s, %s)" % (datetime.now().isoformat(), code, expected_state, scopes))
     # using OAuth2Session object to access OAuth2 Application
     redirect = REDIRECT_URL + ":" + str(PORT)
     aad_auth = OAuth2Session(app_id, state=expected_state, scope=scopes, redirect_uri=redirect)
-    print("[*] OAuth2Session Initiated -> %s" % hex(id(aad_auth)))
-    print("[*] fetching JWT")
+    logger.debug("[*] fetching JWT")
     # fetching new token
     token = aad_auth.fetch_token(token_url, client_secret=app_secret, code=code)
-    print("[+] Got JWT -> %s" % token)
+    logger.debug("[+] Got JWT -> %s" % token)
     # dumping as bytes using pickle
-    return dumps(token)
+    pkl_data = dumps(token)
+    logger.debug("%s | get_token_from_code (returns: %s)" % (datetime.now().isoformat(), pkl_data))
+    return pkl_data
 
 
 class ServerThread(Thread):
@@ -116,7 +132,7 @@ class ServerThread(Thread):
 
     def run(self):
         # override the `run` method of Thread to serve the server
-        print('[*] starting HTTP listener on port 8000')
+        print('[*] starting HTTP listener on port', PORT)
         self.srv.serve_forever()
 
     def shutdown(self):
@@ -126,7 +142,7 @@ class ServerThread(Thread):
 
 def cleanup(this_driver):
     global logged_in
-    print("[!] Cleanup started for %s" % hex(id(this_driver)))
+    logger.debug("[!] Cleanup started for %s" % hex(id(this_driver)))
     # check if this_driver exist
     if this_driver:
         # remove all cookies
@@ -141,9 +157,9 @@ def user_consent_flow(target_user, authorization_url):
     driver = getwebdriver()
     # navigate to the authorization url
     driver.get(authorization_url)
-    print("[*] Authorization URL Navigation Successful! ")
+    logger.debug("[*] Authorization URL Navigation Successful! ")
     if "Choose an account" in driver.page_source:
-        print("choosing an account")
+        logger.debug("choosing an account")
         if driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).click()
     time.sleep(5)
@@ -155,41 +171,41 @@ def user_consent_flow(target_user, authorization_url):
         """
         if driver.find_element(*OAuthUserConsentTags.EMAIL_FIELD).is_displayed():
             driver.find_element(*OAuthUserConsentTags.EMAIL_FIELD).send_keys(target_user)
-            print("[+] set username -> %s" % target_user)
+            logger.debug("[+] set username -> %s" % target_user)
         time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).click()
         time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.PASSWORD_FIELD).is_displayed():
             driver.find_element(*OAuthUserConsentTags.PASSWORD_FIELD).send_keys(PASSWORD)
-            print("[+] set password -> %s" % PASSWORD)
+            logger.debug("[+] set password -> %s" % PASSWORD)
         time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.NEXT_BUTTON).click()
-            print("[+] click on next button")
+            logger.debug("[+] click on next button")
         time.sleep(5)
         if driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).is_displayed():
             driver.find_element(*OAuthUserConsentTags.ALLOW_BUTTON).click()
-            print("[+] set allow access -> %s" % True)
+            logger.debug("[+] set allow access -> %s" % True)
         time.sleep(5)
     except Exception as e:
-        print(e)
+        logger.debug(e)
     # catch the current url
     url = driver.current_url
     return url, driver
 
 def get_users(farm=None, clusters=None):
-    print("[!] Reading mapping file...")
-    print("[!] Using FARM %s" % farm)
-    print("[!] Using CLUSTERS %s" % clusters)
+    logger.debug("[!] Reading mapping file...")
+    logger.debug("[!] Using FARM %s" % farm)
+    logger.debug("[!] Using CLUSTERS %s" % clusters)
     admin_usr = None
     all_users = []
     # load users mapping file
     data = loadmapping()
     # exit if the given farm does not exist
     if not farm or farm not in data:
-        print("Must have Farm as argument!")
-        print(f"Farm argument should not have spaces!") if ' ' in farm else None
+        logger.debug("Must have Farm as argument!")
+        logger.debug(f"Farm argument should not have spaces!") if ' ' in farm else None
         sys.exit(1)
     # override data with farm object
     data = data.get(farm)
@@ -199,7 +215,7 @@ def get_users(farm=None, clusters=None):
     for cluster in clusters:
         # if cluster does not exist in data, skip
         if cluster not in data:
-            print(f"[ERROR] Cluster {cluster} was not found under Farm {farm}!")
+            logger.debug(f"[ERROR] Cluster {cluster} was not found under Farm {farm}!")
             continue
         # extend users list with the associated users undr the cluster object
         all_users.extend(data.get(cluster))
@@ -214,16 +230,16 @@ def get_users(farm=None, clusters=None):
 def harvest_googleapis_token(given_user):
     global driver, flow
     # Create an entry for InstalledAppFlow to bypass OAuth2 WebApp (using Desktop App)
-    print("[*] GoogleFlowObject -> %s" % hex(id(flow)))
-    # override the redirection url to http://localhost:8000
+    logger.debug("[*] GoogleFlowObject -> %s" % hex(id(flow)))
+    # override the redirection url to http://localhost:80
     flow.redirect_uri = "%s:%d" % (REDIRECT_URL, PORT)
-    print("[*] Set Redirect URL -> %s" % flow.redirect_uri)
+    logger.debug("[*] Set Redirect URL -> %s" % flow.redirect_uri)
     # retrieve authorization url and state
     authorization_url, _ = flow.authorization_url()
-    print("[*] Set Authorization URL -> %s" % authorization_url)
+    logger.debug("[*] Set Authorization URL -> %s" % authorization_url)
     # delegate the current user and authorization url to approve user consent flow
     redirection_url, driver = user_consent_flow(given_user, authorization_url)
-    print("[@] REDIRECT -> %s" % redirection_url)
+    logger.debug("[@] REDIRECT -> %s" % redirection_url)
     # cleaning all cookies from the current user session
     cleanup(driver)
 
@@ -234,8 +250,8 @@ def disable_login_challenge(admin_email, google_user):
     # security_url = ADMIN_USER_SECURITY_URL % google_user
     security_url = ADMIN_USER_SECURITY_URL
     admin_driver.get(security_url)
-    print("[+] Google Console Security URL  -> %s" % security_url)
-    print("[+] trying to bypass Login Challenge using -> %s:%s" % (admin_email, PASSWORD))
+    logger.debug("[+] Google Console Security URL  -> %s" % security_url)
+    logger.debug("[+] trying to bypass Login Challenge using -> %s:%s" % (admin_email, PASSWORD))
     time.sleep(10)
     # check in Admin has authenticated before to prevent time consumption on re-authentication
     if not logged_in:
@@ -255,9 +271,9 @@ def disable_login_challenge(admin_email, google_user):
         except Exception as e:
             if admin_driver.find_element(*GoogleConsoleSecurityTags.SCROLL_TARGET).is_displayed():
                 logged_in = True
-                print("[!] Admin Session is already open")
+                logger.debug("[!] Admin Session is already open")
     else:
-        print(f"[*] Admin User {admin_email} is already Logged In!")
+        logger.debug(f"[*] Admin User {admin_email} is already Logged In!")
     time.sleep(5)
     # click the right user mail
     admin_driver.find_element("xpath", './/div[contains(text(), "%s")]/../../..//a' % user).click()
@@ -277,7 +293,7 @@ def disable_login_challenge(admin_email, google_user):
     time.sleep(5)
     # disable the Login challenge for the next 10 minutes for that particular user
     admin_driver.find_element(*GoogleConsoleSecurityTags.DISABLE_CHALLENGE_BUTTON).click()
-    print("[*] Login Challenge for %s completed successfully" % user)
+    logger.debug("[*] Login Challenge for %s completed successfully" % user)
     cleanup(admin_driver)
     return
 
@@ -285,8 +301,8 @@ def separate_google_id_from(given_user):
     # splits the email and user ID
     """ E.g.  userX@sub.domain.net:ABCD1234 """
     u, uid = given_user.split(":")
-    print("[*] USER -> %s" % u)
-    print("[*] UID  -> %s" % uid)
+    logger.debug("[*] USER -> %s" % u)
+    logger.debug("[*] UID  -> %s" % uid)
     return u, uid
 
 
