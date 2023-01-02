@@ -9,7 +9,7 @@ from werkzeug.serving import make_server
 import google_auth_oauthlib
 from helpers import getwebdriver, getclientconfig, getsecuritypassword, loadmapping
 from selenium.webdriver.common.action_chains import ActionChains
-from database import get_session, init_debug_db
+from database import get_session, init_debug_db, getdatatbaseinfo
 from dao import TokenUserRecordsDAO
 from locators import OAuthUserConsentTags, GoogleConsoleSecurityTags, AdminLoginTags
 
@@ -31,6 +31,9 @@ admin_driver = None
 app = Flask(__name__)
 flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, SCOPES)
 
+if not getdatatbaseinfo().get("host"):
+    init_debug_db()
+
 def extract_params(url):
     code, state, scope = None, None, None
     url = urllib.parse.unquote(url)
@@ -43,8 +46,6 @@ def extract_params(url):
             scope = _.split('=')[-1].split(',').pop()
     return code, state, scope
 
-if '--debug' in sys.argv and bool(int(sys.argv[sys.argv.index('--debug')+1])):
-    init_debug_db()
 
 @app.route("/", methods=["GET"])
 def callback():
