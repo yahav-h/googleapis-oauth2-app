@@ -88,4 +88,4 @@ if __name__ == '__main__':
     database.init_debug_db()
     app.secret_key = uuid.uuid4().hex
     app.debug = False
-    app.run(host="0.0.0.0", port=8080)
+    app.run(host="0.0.0.0", port=80)
