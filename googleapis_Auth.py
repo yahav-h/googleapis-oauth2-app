@@ -7,7 +7,7 @@ from requests_oauthlib import OAuth2Session
 from flask import Flask, request
 from werkzeug.serving import make_server
 import google_auth_oauthlib
-from helpers import getwebdriver, getclientconfig, getsecuritypassword, loadmapping, get_logs_dir, ActionChains
+from helpers import getwebdriver, getclientconfig, getsecuritypassword, get_logs_dir, ActionChains
 from database import get_session, init_debug_db
 from dao import UserDataAccessObject
 from dto import UserDataTransferObject
