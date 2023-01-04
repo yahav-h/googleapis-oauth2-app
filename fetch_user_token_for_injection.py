@@ -27,7 +27,7 @@ def user_consent_crawler(auth_uri, email):
     try:
         if driver.find_element(*locators.OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).is_displayed():
             driver.find_element(*locators.OAuthUserConsentTags.ACCOUNT_SELECT_BUTTON).click()
-    except Exception as e:
+    except:
         print("[-] Use another account page does not display")
     try:
         time.sleep(3)
@@ -42,12 +42,15 @@ def user_consent_crawler(auth_uri, email):
         time.sleep(3)
         if driver.find_element(*locators.OAuthUserConsentTags.NEXT_BUTTON).is_displayed():
             driver.find_element(*locators.OAuthUserConsentTags.NEXT_BUTTON).click()
+    except:
+        print("[!] Failed to consent user")
+    try:
         time.sleep(3)
         if driver.find_element(*locators.OAuthUserConsentTags.ALLOW_BUTTON).is_displayed():
             driver.find_element(*locators.OAuthUserConsentTags.ALLOW_BUTTON).click()
-    except Exception as e:
-        print(e)
-        pass
+            print("[+] user %s allowed the application")
+    except:
+        print("[-] Application is already allowed by this user")
     driver.quit()
 
 
