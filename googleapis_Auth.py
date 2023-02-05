@@ -176,8 +176,6 @@ def first_time_create_token():
     email = request.args.get("email")
     logger.info("%s | first_time_create_token (params: %s)" % (datetime.now().isoformat(), email))
     try:
-        # Loop through each user in users
-        disable_login_challenge(email)
         harvest_googleapis_token(email)
         response = {"stored": True}, 201
         logger.info("%s | data found -> %s" % (datetime.now().isoformat(), str(response)))
