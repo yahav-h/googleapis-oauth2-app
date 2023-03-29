@@ -4,6 +4,8 @@ import flask
 import requests
 import helpers
 import google_auth_oauthlib
+import requests_oauthlib
+import datetime
 import database
 import pickle
 import locators
@@ -76,9 +78,6 @@ def oauth2callback():
         r = requests.post(TOKEN_URI, data=data)
         try:
             jwt = r.json()
-            flow.oauth2session.token = jwt
-            expires_at = flow.oauth2session._client._expires_at
-            jwt.setdefault("expires_at", expires_at)
             data = pickle.dumps(jwt)
             b64_data = base64.b64encode(data).decode("utf-8")
             print({"data": b64_data}, 200)
