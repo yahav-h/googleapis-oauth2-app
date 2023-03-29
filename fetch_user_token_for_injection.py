@@ -18,7 +18,7 @@ CLIENT_SECRET = CLIENT_CONFIG.get("installed").get("client_secret")
 TOKEN_URI = CLIENT_CONFIG.get("installed").get("token_uri")
 REDIRECT_URI = CLIENT_CONFIG.get("installed").get("redirect_uris").pop()
 SCOPES = ['https://www.googleapis.com/auth/drive', 'https://mail.google.com/']
-
+flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, SCOPES)
 
 def user_consent_crawler(auth_uri, email):
     driver = helpers.getwebdriver()
@@ -56,13 +56,12 @@ def user_consent_crawler(auth_uri, email):
 
 @app.route('/')
 def oauth2callback():
-    global email, action
+    global email, action, flow
     if not email:
       email = flask.request.args.get("email")
     if 'code' not in flask.request.args:
         # auth_uri = ('https://accounts.google.com/o/oauth2/v2/auth?response_type=code'
         #             '&client_id={}&redirect_uri={}&scope={}').format(CLIENT_ID, REDIRECT_URI, *SCOPE)
-        flow = google_auth_oauthlib.flow.Flow.from_client_config(CLIENT_CONFIG, SCOPES)
         flow.redirect_uri = REDIRECT_URI
         auth_uri, state = flow.authorization_url(scopes=SCOPES, client=CLIENT_ID)
         user_consent_crawler(auth_uri, email)
@@ -76,7 +75,11 @@ def oauth2callback():
                 'grant_type': 'authorization_code'}
         r = requests.post(TOKEN_URI, data=data)
         try:
-            data = pickle.dumps(r.json())
+            jwt = r.json()
+            flow.oauth2session.token = jwt
+            expires_at = flow.oauth2session._client._expires_at
+            jwt.setdefault("expires_at", expires_at)
+            data = pickle.dumps(jwt)
             b64_data = base64.b64encode(data).decode("utf-8")
             print({"data": b64_data}, 200)
             return {"data": b64_data}, 200
