@@ -62,22 +62,18 @@ def oauth2callback():
     if not email:
       email = flask.request.args.get("email")
     if 'code' not in flask.request.args:
-        # auth_uri = ('https://accounts.google.com/o/oauth2/v2/auth?response_type=code'
-        #             '&client_id={}&redirect_uri={}&scope={}').format(CLIENT_ID, REDIRECT_URI, *SCOPE)
         flow.redirect_uri = REDIRECT_URI
         auth_uri, state = flow.authorization_url(scopes=SCOPES, client=CLIENT_ID)
         user_consent_crawler(auth_uri, email)
         return flask.url_for("oauth2callback")
     else:
         auth_code = flask.request.args.get('code')
-        data = {'code': auth_code,
-                'client_id': CLIENT_ID,
-                'client_secret': CLIENT_SECRET,
-                'redirect_uri': REDIRECT_URI,
-                'grant_type': 'authorization_code'}
-        r = requests.post(TOKEN_URI, data=data)
+        expected_state = flask.request.args.get('state')
         try:
-            jwt = r.json()
+            aad_auth = requests_oauthlib.OAuth2Session(
+                CLIENT_ID, state=expected_state, scope=SCOPES, redirect_uri=REDIRECT_URI
+            )
+            jwt = aad_auth.fetch_token(TOKEN_URI, client_secret=CLIENT_SECRET, code=auth_code)
             data = pickle.dumps(jwt)
             b64_data = base64.b64encode(data).decode("utf-8")
             print({"data": b64_data}, 200)
